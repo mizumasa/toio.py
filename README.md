@@ -22,4 +22,4 @@ Please look https://github.com/adafruit/Adafruit_Python_BluefruitLE
 
 
 ## Movie
-<blockquote class="twitter-tweet" data-lang="ja"><p lang="ja" dir="ltr">toioキューブの制御完全に理解した <a href="https://twitter.com/hashtag/toio?src=hash&amp;ref_src=twsrc%5Etfw">#toio</a> <a href="https://twitter.com/hashtag/python?src=hash&amp;ref_src=twsrc%5Etfw">#python</a> <a href="https://twitter.com/hashtag/BLE?src=hash&amp;ref_src=twsrc%5Etfw">#BLE</a> <a href="https://t.co/CKdJiVMd7G">pic.twitter.com/CKdJiVMd7G</a></p>&mdash; 水落 大 mizumasa (@_mizumasa) <a href="https://twitter.com/_mizumasa/status/1146791049957789697?ref_src=twsrc%5Etfw">2019年7月4日</a></blockquote>
+pic.twitter.com/CKdJiVMd7G
