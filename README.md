@@ -22,4 +22,4 @@ Please look https://github.com/adafruit/Adafruit_Python_BluefruitLE
 
 
 ## Movie
-pic.twitter.com/CKdJiVMd7G
+https://twitter.com/_mizumasa/status/1146791049957789697
