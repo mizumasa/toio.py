@@ -15,6 +15,15 @@ import Adafruit_BluefruitLE
 SERVICE_UUID = uuid.UUID('10B20100-5B3B-4571-9508-CF3EFCD7BBAE')
 MOTOR_UUID = uuid.UUID('10B20102-5B3B-4571-9508-CF3EFCD7BBAE')
 
+"""
+import toio_util as tu
+TT = tu.TOIO_COMMUNICATOR()
+TT.start(50006)
+def h(i):
+    return hex(i)[2:].zfill(2)
+for i in range(10,200,5):
+    TT.send("0:0:010101"+h(i)+"0201"+h(i))
+"""
 class DEVICE:
     def __init__(self,obj):
         self.obj = obj
@@ -26,6 +35,7 @@ class DEVICE:
         self.uart = self.obj.find_service(SERVICE_UUID)
         self.chara_motor = self.uart.find_characteristic(MOTOR_UUID)
     def write_motor(self,commandStr):
+        print("motor write command:{0}".format(commandStr))
         self.chara_motor.write_value(binascii.a2b_hex(commandStr))
     def disconnect(self):
         self.obj.disconnect()
@@ -51,7 +61,7 @@ class TOIO_COMMUNICATOR:
             self.active = False
             print("Process joined.")
 
-    def connect(self, num=1, port=50000):
+    def start(self, num=1, port=50000):
         self.clear()
         self.socketPort = port
         self.connectNum = num
@@ -119,7 +129,8 @@ class TOIO_COMMUNICATOR:
                 print('Detect num: {0}'.format(len(deviceList)))
                 for device in deviceList:
                     print('Found device name: {0}'.format(device.name))
-                self.device = DEVICE(deviceList[0])
+                    devices.append(DEVICE(device))
+
         finally:
             adapter.stop_scan()
 
@@ -133,7 +144,8 @@ class TOIO_COMMUNICATOR:
 
         try:
             if found:
-                self.device.connect()
+                for device in devices:
+                    device.connect()
 
             count = 0
             while 1:
@@ -144,21 +156,29 @@ class TOIO_COMMUNICATOR:
                     s.sendall(recv)
                     break
                 m = message(recv,ble_buf)
-                for i in m:
-                    s.sendall(i[0]+':'+i[1]+',')
-
                 print('BLE Loop Receive: {0}'.format(repr(recv)))
 
-                if found:
+                for i in m:
+                    print(i)
+                    s.sendall(i[0]+':'+i[1]+',')
+                    if len(i)==4:
+                        useId = int(i[1])
+                        actionId = int(i[2])
+                        commandStr = i[3]
+                        if useId < len(devices):
+                            if actionId == 0:#motor
+                                devices[useId].write_motor(commandStr)
+
+                if found and 0:
                     CommandStr = "01010164020164"
                     print('Move forward: {0}'.format(CommandStr))
                     self.device.write_motor(CommandStr)
                 time.sleep(1)
 
-
         finally:
             if found:
-                self.device.disconnect()
+                for device in devices:
+                    device.disconnect()
             print("Disconnected")
             s.sendall(b'close')
             s.close()
