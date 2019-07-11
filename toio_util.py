@@ -14,6 +14,8 @@ import Adafruit_BluefruitLE
 
 SERVICE_UUID = uuid.UUID('10B20100-5B3B-4571-9508-CF3EFCD7BBAE')
 MOTOR_UUID = uuid.UUID('10B20102-5B3B-4571-9508-CF3EFCD7BBAE')
+MOTION_UUID = uuid.UUID('10B20106-5B3B-4571-9508-CF3EFCD7BBAE')
+BUTTON_UUID = uuid.UUID('10B20107-5B3B-4571-9508-CF3EFCD7BBAE')
 
 """
 import toio_util as tu
@@ -27,6 +29,7 @@ for i in range(10,200,5):
 class DEVICE:
     def __init__(self,obj):
         self.obj = obj
+        self.notify = []
     def connect(self):
         print('Connecting to device...')
         self.obj.connect()
@@ -34,11 +37,37 @@ class DEVICE:
         self.obj.discover([SERVICE_UUID], [MOTOR_UUID])
         self.uart = self.obj.find_service(SERVICE_UUID)
         self.chara_motor = self.uart.find_characteristic(MOTOR_UUID)
+        self.chara_motion = self.uart.find_characteristic(MOTION_UUID)
+        self.chara_button = self.uart.find_characteristic(BUTTON_UUID)
+        self.chara_motion.start_notify(self.notify_motion)
+        self.chara_button.start_notify(self.notify_button)
+
     def write_motor(self,commandStr):
         print("motor write command:{0}".format(commandStr))
         self.chara_motor.write_value(binascii.a2b_hex(commandStr))
+    def read_motion(self):
+        motionVal = self.chara_motion.read_value()
+        receivedStr = binascii.b2a_hex(motionVal)
+        print('Motion Read: {0}'.format(receivedStr))
+        return receivedStr
+    def read_button(self):
+        buttonVal = self.chara_button.read_value()
+        receivedStr = binascii.b2a_hex(buttonVal)
+        print('Button Read: {0}'.format(receivedStr))
+        return receivedStr
     def disconnect(self):
         self.obj.disconnect()
+
+    def notify_motion(self,data):
+        receivedStr = binascii.b2a_hex(data)
+        print('Motion Notify Received: {0}'.format(receivedStr))
+        self.notify.append({"motion":receivedStr})
+    def notify_button(self,data):
+        receivedStr = binascii.b2a_hex(data)
+        print('Button Notify Received: {0}'.format(receivedStr))
+        self.notify.append({"button":receivedStr})
+    def read_notify(self):
+        return self.notify
 
 
 class TOIO_COMMUNICATOR:
@@ -53,7 +82,7 @@ class TOIO_COMMUNICATOR:
     def noToio(self):
         self.vmode = True
 
-    def stop(self):
+    def disconnect(self):
         if self.active:
             self.send(b'_')
             self.s.close()
@@ -61,7 +90,7 @@ class TOIO_COMMUNICATOR:
             self.active = False
             print("Process joined.")
 
-    def start(self, num=1, port=50000):
+    def connect(self, num=1, port=50000):
         self.clear()
         self.socketPort = port
         self.connectNum = num
@@ -82,17 +111,23 @@ class TOIO_COMMUNICATOR:
         self.log = []
         return
 
-    def send(self,data):
+    def send(self, data, wait=True):
         if self.active:
             self.conn.sendall(str(self.mid)+':'+data+',')
+            if not wait:
+                return None
             loop = True
             while loop:
                 recv = self.conn.recv(1024)
                 m = message(recv,self.buf)
                 for i in m:
-                    self.log.append(i[1])
-                    if self.mid == int(i[0]):
-                        loop = False
+                    self.log.append(i)
+                    try:
+                        if self.mid == int(i[0]):
+                            loop = False
+                            return i[1]
+                    except:
+                        print("error ",i)
 
     def ble_process(self):
         self.ble = Adafruit_BluefruitLE.get_provider()
@@ -160,7 +195,7 @@ class TOIO_COMMUNICATOR:
 
                 for i in m:
                     print(i)
-                    s.sendall(i[0]+':'+i[1]+',')
+                    ret = ""
                     if len(i)==4:
                         useId = int(i[1])
                         actionId = int(i[2])
@@ -168,6 +203,13 @@ class TOIO_COMMUNICATOR:
                         if useId < len(devices):
                             if actionId == 0:#motor
                                 devices[useId].write_motor(commandStr)
+                            if actionId == 1:#motion
+                                ret = devices[useId].read_motion()
+                            if actionId == 2:#button
+                                ret = devices[useId].read_button()
+                            if actionId == 3:#check notify
+                                ret = str(devices[useId].read_notify()).replace(":","^")
+                    s.sendall(i[0]+':'+ret+',')
 
                 if found and 0:
                     CommandStr = "01010164020164"
