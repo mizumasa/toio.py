@@ -11,21 +11,19 @@ from multiprocessing import Process
 import uuid
 import binascii
 import Adafruit_BluefruitLE
-
-SERVICE_UUID = uuid.UUID('10B20100-5B3B-4571-9508-CF3EFCD7BBAE')
-MOTOR_UUID = uuid.UUID('10B20102-5B3B-4571-9508-CF3EFCD7BBAE')
-MOTION_UUID = uuid.UUID('10B20106-5B3B-4571-9508-CF3EFCD7BBAE')
-BUTTON_UUID = uuid.UUID('10B20107-5B3B-4571-9508-CF3EFCD7BBAE')
+from toio_config import *
 
 """
+LOW LEVEL UTIL
+
 import toio_util as tu
 TT = tu.TOIO_COMMUNICATOR()
-TT.start(50006)
-def h(i):
-    return hex(i)[2:].zfill(2)
+TT.connect(1,50000)
 for i in range(10,200,5):
-    TT.send("0:0:010101"+h(i)+"0201"+h(i))
+    cmd = "010101{:02x}0201{:02x}".format(i,i)
+    TT.send("0:2:"+cmd)
 """
+
 class DEVICE:
     def __init__(self,obj):
         self.obj = obj
@@ -37,35 +35,63 @@ class DEVICE:
         self.obj.discover([SERVICE_UUID], [MOTOR_UUID])
         self.uart = self.obj.find_service(SERVICE_UUID)
         self.chara_motor = self.uart.find_characteristic(MOTOR_UUID)
-        self.chara_motion = self.uart.find_characteristic(MOTION_UUID)
+        self.chara_light = self.uart.find_characteristic(LIGHT_UUID)
+        self.chara_sound = self.uart.find_characteristic(SOUND_UUID)
+        self.chara_id = self.uart.find_characteristic(ID_UUID)
+        self.chara_sensor = self.uart.find_characteristic(SENSOR_UUID)
         self.chara_button = self.uart.find_characteristic(BUTTON_UUID)
-        self.chara_motion.start_notify(self.notify_motion)
+        self.chara_battery = self.uart.find_characteristic(BATTERY_UUID)
+        self.chara_config = self.uart.find_characteristic(CONFIG_UUID)
+        self.chara_sensor.start_notify(self.notify_sensor)
         self.chara_button.start_notify(self.notify_button)
 
     def write_motor(self,commandStr):
         print("motor write command:{0}".format(commandStr))
         self.chara_motor.write_value(binascii.a2b_hex(commandStr))
-    def read_motion(self):
-        motionVal = self.chara_motion.read_value()
-        receivedStr = binascii.b2a_hex(motionVal)
-        print('Motion Read: {0}'.format(receivedStr))
+    def write_light(self,commandStr):
+        print("light write command:{0}".format(commandStr))
+        self.chara_light.write_value(binascii.a2b_hex(commandStr))
+    def write_sound(self,commandStr):
+        print("sound write command:{0}".format(commandStr))
+        self.chara_sound.write_value(binascii.a2b_hex(commandStr))
+
+    def read_id(self):
+        idVal = self.chara_id.read_value()
+        receivedStr = binascii.b2a_hex(idVal)
+        print('sensor Read: {0}'.format(receivedStr))
+        return receivedStr
+    def read_sensor(self):
+        sensorVal = self.chara_sensor.read_value()
+        receivedStr = binascii.b2a_hex(sensorVal)
+        print('sensor Read: {0}'.format(receivedStr))
         return receivedStr
     def read_button(self):
         buttonVal = self.chara_button.read_value()
         receivedStr = binascii.b2a_hex(buttonVal)
         print('Button Read: {0}'.format(receivedStr))
         return receivedStr
+    def read_battery(self):
+        batteryVal = self.chara_battery.read_value()
+        receivedStr = binascii.b2a_hex(batteryVal)
+        print('Battery Read: {0}'.format(receivedStr))
+        return receivedStr
+    def read_config(self):
+        configVal = self.chara_config.read_value()
+        receivedStr = binascii.b2a_hex(configVal)
+        print('Config Read: {0}'.format(receivedStr))
+        return receivedStr
     def disconnect(self):
         self.obj.disconnect()
 
-    def notify_motion(self,data):
+    def notify_sensor(self,data):
         receivedStr = binascii.b2a_hex(data)
-        print('Motion Notify Received: {0}'.format(receivedStr))
-        self.notify.append({"motion":receivedStr})
+        print('sensor Notify Received: {0}'.format(receivedStr))
+        self.notify.append({"sensor":receivedStr})
     def notify_button(self,data):
         receivedStr = binascii.b2a_hex(data)
         print('Button Notify Received: {0}'.format(receivedStr))
         self.notify.append({"button":receivedStr})
+
     def read_notify(self):
         return self.notify
 
@@ -125,9 +151,11 @@ class TOIO_COMMUNICATOR:
                     try:
                         if self.mid == int(i[0]):
                             loop = False
-                            return i[1]
                     except:
                         print("error ",i)
+            self.mid += 1
+            return i[1]
+        return None
 
     def ble_process(self):
         self.ble = Adafruit_BluefruitLE.get_provider()
@@ -173,7 +201,7 @@ class TOIO_COMMUNICATOR:
             if self.vmode:
                 print("Virtual mode")
             else:
-                print("switch on toio")
+                print("Switch on toio")
                 s.close()
                 return
 
@@ -197,25 +225,35 @@ class TOIO_COMMUNICATOR:
                     print(i)
                     ret = ""
                     if len(i)==4:
-                        useId = int(i[1])
+                        cubeId = int(i[1])
                         actionId = int(i[2])
                         commandStr = i[3]
-                        if useId < len(devices):
-                            if actionId == 0:#motor
-                                devices[useId].write_motor(commandStr)
-                            if actionId == 1:#motion
-                                ret = devices[useId].read_motion()
-                            if actionId == 2:#button
-                                ret = devices[useId].read_button()
-                            if actionId == 3:#check notify
-                                ret = str(devices[useId].read_notify()).replace(":","^")
+                        if cubeId < len(devices):
+                            if actionId == MSG_ID_MOTOR:
+                                devices[cubeId].write_motor(commandStr)
+                            if actionId == MSG_ID_LIGHT:
+                                devices[cubeId].write_light(commandStr)
+                            if actionId == MSG_ID_SOUND:
+                                devices[cubeId].write_sound(commandStr)
+                            if actionId == MSG_ID_ID:
+                                ret = devices[cubeId].read_id()
+                            if actionId == MSG_ID_SENSOR:
+                                ret = devices[cubeId].read_sensor()
+                            if actionId == MSG_ID_BUTTON:
+                                ret = devices[cubeId].read_button()
+                            if actionId == MSG_ID_BATTERY:
+                                ret = devices[cubeId].read_battery()
+                            if actionId == MSG_ID_CONFIG:
+                                ret = devices[cubeId].read_config()
+                            if actionId == MSG_ID_NOTIFY:
+                                ret = str(devices[cubeId].read_notify()).replace(":","^")
                     s.sendall(i[0]+':'+ret+',')
 
                 if found and 0:
                     CommandStr = "01010164020164"
                     print('Move forward: {0}'.format(CommandStr))
                     self.device.write_motor(CommandStr)
-                time.sleep(1)
+                #time.sleep(1)
 
         finally:
             if found:
