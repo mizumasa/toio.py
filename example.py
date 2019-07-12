@@ -52,8 +52,7 @@ def main(toio_num):
     return
 
 if __name__ == '__main__':
-    print("test code")
-    print("python toio_test.py 1~(n)")
+    print("[Usage] python toio_test.py 1~(n)")
     args = sys.argv
     toio_num = 1
     if len(args) > 1:
