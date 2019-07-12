@@ -1,5 +1,29 @@
 # toio.py
-Test for controlling toio™Core Cube using Python
+Library for controlling toio™Core Cube using Python
+
+## Usage
+```
+>>> import toio
+>>> T = toio.TOIO()
+>>> T.connect()
+
+>>> cubeID = 0
+>>> T.write_data_motor(cubeID,100,0)
+    
+>>> r,g,b = 255,0,0
+>>> T.write_data_light(cubeID,0,r,g,b)
+
+>>> T.write_data_sound(cubeID,0)
+
+>>> T.get_data_sensor(cubeID)
+{'slope': 1, 'collision': 0}
+
+>>> T.get_data_button(cubeID)
+{'button': 128}
+
+>>> T.disconnect()
+```
+
 
 ## Requirement
 
@@ -13,6 +37,10 @@ You need to install "Adafruit Python BluefruitLE"
 Please look https://github.com/adafruit/Adafruit_Python_BluefruitLE
 
 ## Example
+python toio_test.py [number of cubes]
+
+
+## Low Level API Example
 | Name | Cube | Description |
 | ----------- | ------------------ | ------ |
 | sample_1_simple.py |1| Moving forward 1 second |
