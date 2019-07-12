@@ -10,12 +10,19 @@ import toio_message
 
 def main(toio_num):
     T = toio.TOIO()
+    #T.noToio(4)
     T.connect()
     toio_num = min(toio_num, T.toio_num)
     
     for i in range(toio_num):
         T.write_data_motor(i,100,0)
     time.sleep(1)
+
+    for i in range(toio_num):
+        print(T.get_data_id(i))
+        print(T.get_data_sensor(i))
+        print(T.get_data_button(i))
+        print(T.get_data_battery(i))
 
     for i in range(toio_num):
         T.write_data_motor(i,0,100)

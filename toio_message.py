@@ -132,7 +132,7 @@ def hexD2list(data):
     assert len(data) % 4 == 0
     out = []
     for i in range(0,len(data),4):
-        out.append(int(data[i:i+4],16))
+        out.append(int(data[i+2:i+4]+data[i:i+2],16)) #Little Endian
     return out
 
 def main():
