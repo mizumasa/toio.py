@@ -37,7 +37,7 @@ You need to install "Adafruit Python BluefruitLE"
 Please look https://github.com/adafruit/Adafruit_Python_BluefruitLE
 
 ## Example
-python toio_test.py [number of cubes]
+python example.py [number of cubes]
 
 
 ## Low Level API Example
