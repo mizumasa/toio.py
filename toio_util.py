@@ -11,6 +11,7 @@ from multiprocessing import Process
 import uuid
 import binascii
 import Adafruit_BluefruitLE
+import toio_message
 from toio_config import *
 
 """
@@ -28,6 +29,7 @@ class DEVICE:
     def __init__(self,obj):
         self.obj = obj
         self.notify = []
+        self.active = False
     def connect(self):
         print('Connecting to device...')
         self.obj.connect()
@@ -44,52 +46,55 @@ class DEVICE:
         self.chara_config = self.uart.find_characteristic(CONFIG_UUID)
         self.chara_sensor.start_notify(self.notify_sensor)
         self.chara_button.start_notify(self.notify_button)
+        self.active = True
 
     def write_motor(self,commandStr):
-        print("motor write command:{0}".format(commandStr))
+        if DEBUG:print("motor write command:{0}".format(commandStr))
         self.chara_motor.write_value(binascii.a2b_hex(commandStr))
     def write_light(self,commandStr):
-        print("light write command:{0}".format(commandStr))
+        if DEBUG:print("light write command:{0}".format(commandStr))
         self.chara_light.write_value(binascii.a2b_hex(commandStr))
     def write_sound(self,commandStr):
-        print("sound write command:{0}".format(commandStr))
+        if DEBUG:print("sound write command:{0}".format(commandStr))
         self.chara_sound.write_value(binascii.a2b_hex(commandStr))
 
     def read_id(self):
         idVal = self.chara_id.read_value()
         receivedStr = binascii.b2a_hex(idVal)
-        print('sensor Read: {0}'.format(receivedStr))
+        if DEBUG:print('sensor Read: {0}'.format(receivedStr))
         return receivedStr
     def read_sensor(self):
         sensorVal = self.chara_sensor.read_value()
         receivedStr = binascii.b2a_hex(sensorVal)
-        print('sensor Read: {0}'.format(receivedStr))
+        if DEBUG:print('sensor Read: {0}'.format(receivedStr))
         return receivedStr
     def read_button(self):
         buttonVal = self.chara_button.read_value()
         receivedStr = binascii.b2a_hex(buttonVal)
-        print('Button Read: {0}'.format(receivedStr))
+        if DEBUG:print('Button Read: {0}'.format(receivedStr))
         return receivedStr
     def read_battery(self):
         batteryVal = self.chara_battery.read_value()
         receivedStr = binascii.b2a_hex(batteryVal)
-        print('Battery Read: {0}'.format(receivedStr))
+        if DEBUG:print('Battery Read: {0}'.format(receivedStr))
         return receivedStr
     def read_config(self):
         configVal = self.chara_config.read_value()
         receivedStr = binascii.b2a_hex(configVal)
-        print('Config Read: {0}'.format(receivedStr))
+        if DEBUG:print('Config Read: {0}'.format(receivedStr))
         return receivedStr
     def disconnect(self):
-        self.obj.disconnect()
+        if self.active == True:
+            self.obj.disconnect()
+            self.active = False
 
     def notify_sensor(self,data):
         receivedStr = binascii.b2a_hex(data)
-        print('sensor Notify Received: {0}'.format(receivedStr))
+        if DEBUG:print('sensor Notify Received: {0}'.format(receivedStr))
         self.notify.append({"sensor":receivedStr})
     def notify_button(self,data):
         receivedStr = binascii.b2a_hex(data)
-        print('Button Notify Received: {0}'.format(receivedStr))
+        if DEBUG:print('Button Notify Received: {0}'.format(receivedStr))
         self.notify.append({"button":receivedStr})
 
     def read_notify(self):
@@ -100,6 +105,7 @@ class TOIO_COMMUNICATOR:
     def __init__(self):
         self.clear()
         self.vmode = False
+        self.port = 50000
 
     def clear(self):
         self.active = False
@@ -116,9 +122,12 @@ class TOIO_COMMUNICATOR:
             self.active = False
             print("Process joined.")
 
-    def connect(self, num=1, port=50000):
+    def connect(self, num = None, port = None):
         self.clear()
-        self.socketPort = port
+        self.socketPort = self.port
+        if port is not None:
+            self.socketPort = port
+        self.port += 1
         self.connectNum = num
         self.p = Process(target=self.ble_process)
         self.p.start()
@@ -141,6 +150,7 @@ class TOIO_COMMUNICATOR:
         if self.active:
             self.conn.sendall(str(self.mid)+':'+data+',')
             if not wait:
+                self.mid += 1
                 return None
             loop = True
             while loop:
@@ -163,12 +173,12 @@ class TOIO_COMMUNICATOR:
         self.ble.run_mainloop_with(self.ble_main)
 
     def ble_main(self):
-        print("ble main start")
+        print("BLE main start")
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             s.connect(('127.0.0.1', self.socketPort))
         except:
-            print("socket error (use another port)")
+            print("Socket error (use another port)")
             return
         ble_buf = [""]
 
@@ -180,7 +190,7 @@ class TOIO_COMMUNICATOR:
 
         found = False
         print('Searching device...')
-        devices = []
+        self.devices = []
         try:
             adapter.start_scan()
             self.ble.find_device(name="toio Core Cube",timeout_sec=3)
@@ -192,11 +202,11 @@ class TOIO_COMMUNICATOR:
                 print('Detect num: {0}'.format(len(deviceList)))
                 for device in deviceList:
                     print('Found device name: {0}'.format(device.name))
-                    devices.append(DEVICE(device))
+                    self.devices.append(DEVICE(device))
 
         finally:
             adapter.stop_scan()
-
+        
         if not found:
             if self.vmode:
                 print("Virtual mode")
@@ -207,62 +217,60 @@ class TOIO_COMMUNICATOR:
 
         try:
             if found:
-                for device in devices:
+                for device in self.devices:
                     device.connect()
 
             count = 0
-            while 1:
+            while 1:    
 
                 recv = s.recv(1024)
                 if b'_' in recv:
-                    print(recv,"rect")
+                    if DEBUG:print(recv,"rect")
                     s.sendall(recv)
                     break
                 m = message(recv,ble_buf)
-                print('BLE Loop Receive: {0}'.format(repr(recv)))
+                if DEBUG:print('BLE Loop Receive: {0}'.format(repr(recv)))
 
                 for i in m:
-                    print(i)
+                    if DEBUG:print(i)
                     ret = ""
                     if len(i)==4:
                         cubeId = int(i[1])
                         actionId = int(i[2])
                         commandStr = i[3]
-                        if cubeId < len(devices):
+                        if cubeId < len(self.devices) and self.devices[cubeId].active:
                             if actionId == MSG_ID_MOTOR:
-                                devices[cubeId].write_motor(commandStr)
+                                self.devices[cubeId].write_motor(commandStr)
                             if actionId == MSG_ID_LIGHT:
-                                devices[cubeId].write_light(commandStr)
+                                self.devices[cubeId].write_light(commandStr)
                             if actionId == MSG_ID_SOUND:
-                                devices[cubeId].write_sound(commandStr)
+                                self.devices[cubeId].write_sound(commandStr)
                             if actionId == MSG_ID_ID:
-                                ret = devices[cubeId].read_id()
+                                ret = self.devices[cubeId].read_id()
                             if actionId == MSG_ID_SENSOR:
-                                ret = devices[cubeId].read_sensor()
+                                ret = self.devices[cubeId].read_sensor()
                             if actionId == MSG_ID_BUTTON:
-                                ret = devices[cubeId].read_button()
+                                ret = self.devices[cubeId].read_button()
                             if actionId == MSG_ID_BATTERY:
-                                ret = devices[cubeId].read_battery()
+                                ret = self.devices[cubeId].read_battery()
                             if actionId == MSG_ID_CONFIG:
-                                ret = devices[cubeId].read_config()
+                                ret = self.devices[cubeId].read_config()
                             if actionId == MSG_ID_NOTIFY:
-                                ret = str(devices[cubeId].read_notify()).replace(":","^")
+                                ret = str(self.devices[cubeId].read_notify()).replace(":","^")
+                            if actionId == MSG_ID_TOIONUM:
+                                ret = str(len(self.devices))
+                            if actionId == MSG_ID_DISCONNECT:
+                                self.devices[cubeId].disconnect()
+                                
                     s.sendall(i[0]+':'+ret+',')
-
-                if found and 0:
-                    CommandStr = "01010164020164"
-                    print('Move forward: {0}'.format(CommandStr))
-                    self.device.write_motor(CommandStr)
-                #time.sleep(1)
 
         finally:
             if found:
-                for device in devices:
+                for device in self.devices:
                     device.disconnect()
             print("Disconnected")
-            s.sendall(b'close')
             s.close()
-            time.sleep(2)
+            time.sleep(1)
 
 
 def message(data, buf):
