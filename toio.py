@@ -13,13 +13,14 @@ from toio_config import *
 class TOIO:
     def __init__(self):
         self.tc = toio_util.TOIO_COMMUNICATOR()
+        self.vmode = False
         self.active = False
         self.assign = {}
         self.assign_edited = False
 
-    def noToio(self):
-        if self.active:
-            self.tc.noToio()
+    def noToio(self,virtual_num = 1):
+        self.tc.noToio()
+        self.vmode = virtual_num
         return
 
     def connect(self, num=None, port=None):
@@ -96,6 +97,7 @@ class TOIO:
     ################
 
     def get_data_id(self,cid):
+        if self.vmode:return None
         _cid = self.assign[cid]
         cmd = "{0}:{1}:".format(_cid, MSG_ID_ID)
         return toio_message.get_data_id(self.send(cmd,True))
@@ -105,6 +107,7 @@ class TOIO:
     ################
 
     def get_data_sensor(self,cid):
+        if self.vmode:return None
         _cid = self.assign[cid]
         cmd = "{0}:{1}:".format(_cid, MSG_ID_SENSOR)
         return toio_message.get_data_sensor(self.send(cmd,True))
@@ -114,6 +117,7 @@ class TOIO:
     ################
 
     def get_data_button(self,cid):
+        if self.vmode:return None
         _cid = self.assign[cid]
         cmd = "{0}:{1}:".format(_cid, MSG_ID_BUTTON)
         return toio_message.get_data_button(self.send(cmd,True))
@@ -123,6 +127,7 @@ class TOIO:
     ################
 
     def get_data_battery(self,cid):
+        if self.vmode:return None
         _cid = self.assign[cid]
         cmd = "{0}:{1}:".format(_cid, MSG_ID_BATTERY)
         return toio_message.get_data_battery(self.send(cmd,True))
@@ -132,11 +137,13 @@ class TOIO:
     ################
 
     def get_connected_num(self):
+        if self.vmode:return self.vmode
         cmd = "{0}:{1}:".format(0, MSG_ID_TOIONUM)
         return int(self.send(cmd,True))
 
 
     def edit_assign(self):
+        if self.vmode:return
         if self.assign_edited:
             print("Edit assign is allowed only once")
             return
