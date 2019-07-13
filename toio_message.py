@@ -13,6 +13,8 @@ from toio_config import *
 def write_data_motor(l,r):
     assert -100 <= l and l<= 100
     assert -100 <= r and r<= 100
+    l = int(l)
+    r = int(r)
     return "0101{:02x}{:02x}02{:02x}{:02x}".format( (l<0)+1, abs(l), (r<0)+1, abs(r) )
 
 def write_data_motor_timer(l,r,t):
@@ -23,6 +25,9 @@ def write_data_motor_timer(l,r,t):
     assert -100 <= l and l<= 100
     assert -100 <= r and r<= 100
     assert 0 <= t and t<= 2550
+    l = int(l)
+    r = int(r)
+    t = int(t)
     return "0201{:02x}{:02x}02{:02x}{:02x}{:02x}".format( (l<0)+1, abs(l), (r<0)+1, abs(r), int(t/10) )
 
 ################
@@ -61,6 +66,10 @@ def write_data_light(t,r,g,b):
     assert 0 <= r and r<= 255
     assert 0 <= g and g<= 255
     assert 0 <= b and b<= 255
+    t = int(t)
+    r = int(r)
+    g = int(g)
+    b = int(b)
     return "03{:02x}0101{:02x}{:02x}{:02x}".format( int(t/10), r, g, b )
 
 def write_data_light_seq(n,t1,r1,g1,b1,t2,r2,g2,b2):
@@ -73,6 +82,14 @@ def write_data_light_seq(n,t1,r1,g1,b1,t2,r2,g2,b2):
     assert 0 <= r2 and r2<= 255
     assert 0 <= g2 and g2<= 255
     assert 0 <= b2 and b2<= 255
+    t1 = int(t1)
+    r1 = int(r1)
+    g1 = int(g1)
+    b1 = int(b1)
+    t2 = int(t2)
+    r2 = int(r2)
+    g2 = int(g2)
+    b2 = int(b2)
     return "04{:02x}02{:02x}0101{:02x}{:02x}{:02x}{:02x}0101{:02x}{:02x}{:02x}".format( 
         n, int(t1/10), r1, g1, b1, int(t2/10), r2, g2, b2)
 

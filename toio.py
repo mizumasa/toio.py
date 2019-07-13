@@ -4,6 +4,7 @@
 #auther: mizumasa
 
 import os
+import math
 import time
 import numpy as np
 import toio_util
@@ -133,6 +134,32 @@ class TOIO:
         return toio_message.get_data_battery(self.send(cmd,True))
 
     ################
+    ### FUNCTION  ##
+    ################
+
+    def move_to(self,cid,x,y,speed = 80,thr = 50):
+        while 1:
+            cPos = self.get_data_id(cid)
+            diffX = x - cPos["cx"]
+            diffY = y - cPos["cy"]
+            distance = math.sqrt(diffX * diffX + diffY * diffY)
+            if distance < thr:
+                self.write_data_motor(cid, 0, 0)
+                return
+            relAngle = (math.atan2(diffY, diffX) * 180) / math.pi - cPos["cr"]
+            relAngle = relAngle % 360
+            if relAngle < -180:
+                relAngle += 360
+            elif relAngle > 180:
+                relAngle -= 360
+            ratio = 1 - abs(relAngle) / 90.
+            if relAngle > 0:
+                self.write_data_motor(cid, speed, speed * ratio)
+            else:
+                self.write_data_motor(cid, speed * ratio, speed)
+            time.sleep(0.05)
+
+    ################
     #### OTHER  ####
     ################
 
@@ -202,6 +229,9 @@ class TOIO:
                 new_assign[assign[i]] = i
         self.assign = new_assign
         return True
+
+
+    
 
 def main():
     toio = TOIO()
