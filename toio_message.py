@@ -111,7 +111,10 @@ def write_data_sound(sid,vol):
 
 def get_data_id(data):
     l = hexD2list(data[2:])
-    return {"cx":l[0],"cy":l[1],"cr":l[2],"sx":l[3],"sy":l[4],"sr":l[5]}
+    if len(l) >= 6:
+        return {"cx":l[0],"cy":l[1],"cr":l[2],"sx":l[3],"sy":l[4],"sr":l[5]}
+    else:
+        return None
 
 ################
 #### SENSOR ####
