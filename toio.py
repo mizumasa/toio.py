@@ -33,7 +33,9 @@ class TOIO:
             if num is not None and self.toio_num > num:
                 print("Please change assign ( edit_assign() )")
             self.active = True
+            self.motor_pre = {}
             for i in range(self.toio_num):
+                self.motor_pre[i] = [0,0]
                 self.assign[i] = i
         return 
 
@@ -56,11 +58,30 @@ class TOIO:
     ################
 
     def write_data_motor(self,cid,l,r):
+        self.motor_pre[cid][0] = l
+        self.motor_pre[cid][1] = r
         _cid = self.assign[cid]
         cmd = "{0}:{1}:{2}".format(_cid, MSG_ID_MOTOR, toio_message.write_data_motor(l,r))
         return self.send(cmd,False)
 
+    def write_data_motor_smooth(self,cid,l,r):
+        _cid = self.assign[cid]
+        d = 30
+        for i in range(d):
+            ll = (0. + l * (i + 1) + self.motor_pre[cid][0] * (d - 1 - i))/ d
+            rr = (0. + r * (i + 1) + self.motor_pre[cid][1] * (d - 1 - i))/ d
+            cmd = "{0}:{1}:{2}".format(_cid, MSG_ID_MOTOR, toio_message.write_data_motor(ll,rr))
+            print(cmd)
+            if i == (d - 1):
+                self.motor_pre[cid][0] = l
+                self.motor_pre[cid][1] = r
+                return self.send(cmd,False)
+            self.send(cmd,False)
+            time.sleep(0.01)
+
     def write_data_motor_timer(self,cid,l,r,t):
+        self.motor_pre[cid][0] = l
+        self.motor_pre[cid][1] = r
         _cid = self.assign[cid]
         cmd = "{0}:{1}:{2}".format(_cid, MSG_ID_MOTOR, toio_message.write_data_motor_timer(l,r,t))
         return self.send(cmd,False)
