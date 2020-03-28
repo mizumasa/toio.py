@@ -158,7 +158,7 @@ class TOIO:
     ### FUNCTION  ##
     ################
 
-    def move_to(self,cid,x,y,speed = 80,thr = 50):
+    def move_to(self,cid,x,y,speed = 80,thr = 50,ease=False):
         while 1:
             cPos = self.get_data_id(cid)
             diffX = x - cPos["cx"]
@@ -174,11 +174,48 @@ class TOIO:
             elif relAngle > 180:
                 relAngle -= 360
             ratio = 1 - abs(relAngle) / 90.
-            if relAngle > 0:
-                self.write_data_motor(cid, speed, speed * ratio)
+            if ease:
+                _speed = self.easing(distance,speed,50)
             else:
-                self.write_data_motor(cid, speed * ratio, speed)
-            time.sleep(0.05)
+                _speed = speed
+            if relAngle > 0:
+                self.write_data_motor(cid, _speed, _speed * ratio)
+            else:
+                self.write_data_motor(cid, _speed * ratio, _speed)
+
+    def turn_to(self,cid,r,clock = None,speed = 80,thr = 3,ease=False):
+        while 1:
+            cPos = self.get_data_id(cid)
+            diffR = (r - cPos["cr"])%360
+            if diffR > 180:
+                direction = 0
+                dist = 360 - diffR
+            else:
+                direction = 1
+                dist = diffR
+            if clock is True:
+                direction = 1
+                dist = diffR
+            if clock is False:
+                direction = 0
+                dist = 360 - diffR
+            if dist < thr:
+                self.write_data_motor(cid, 0, 0)
+                return
+            if ease:
+                _speed = self.easing(dist,speed)
+            else:
+                _speed = speed
+            if direction:
+                self.write_data_motor(cid, _speed, -1*_speed)
+            else:
+                self.write_data_motor(cid, -1*_speed , _speed)
+
+    def easing(self,value,speed,max_value = 180.0):
+        #change speed with value (slow to stop)
+        MIN_SPEED = 10
+        ratio = min(1,value/max_value)
+        return int(MIN_SPEED + (speed - MIN_SPEED)*ratio)
 
     ################
     #### OTHER  ####
