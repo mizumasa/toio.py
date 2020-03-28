@@ -158,7 +158,7 @@ class TOIO:
     ### FUNCTION  ##
     ################
 
-    def move_to(self,cid,x,y,speed = 80,thr = 50,ease=False):
+    def move_to(self,cid,x,y,speed = 80,thr = 50,ease=True):
         while 1:
             cPos = self.get_data_id(cid)
             diffX = x - cPos["cx"]
@@ -183,7 +183,7 @@ class TOIO:
             else:
                 self.write_data_motor(cid, _speed * ratio, _speed)
 
-    def turn_to(self,cid,r,clock = None,speed = 80,thr = 3,ease=False):
+    def turn_to(self,cid,r,clock = None,speed = 80,thr = 3,ease=True):
         while 1:
             cPos = self.get_data_id(cid)
             diffR = (r - cPos["cr"])%360

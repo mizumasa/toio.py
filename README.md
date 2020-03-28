@@ -24,6 +24,14 @@ Library for controlling toio™Core Cube using Python
 >>> T.disconnect()
 ```
 
+## Update
+20/3/28 turo_to コマンド追加
+* Usage) T.turn_to(キューブID, 目標回転方向(0-360))
+* clockオプションで回転方向指定可能
+* デフォルト ease=True で目標近辺で減速する
+
+20/3/28 move_to コマンド ease オプション追加
+* Usage) T.move_to(キューブID, 目標X座標, 目標Y座標, ease=True) easeをTrueにすると止まる前に減速する  
 
 ## Requirement
 
