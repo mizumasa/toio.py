@@ -18,6 +18,7 @@ class TOIO_OSC:
         self.clientMode = False
         self.bArrived = False
         self.serverFunc = {}
+        self.param = {}
         return
 
     def setServerFunc(self,funcName,func):
@@ -51,7 +52,11 @@ class TOIO_OSC:
         print "(tags, data): (%s, %s)" % (tags, data)
         if "light" in self.serverFunc:
             self.serverFunc["light"](0,0,data[0],data[1],data[2])
- 
+
+    def param_handler(self, addr, tags, data, client_address):
+        print "(tags, data): (%s, %s)" % (tags, data)
+        self.param[data[0]]=data[1]
+
     def touch_handler(self, addr, tags, data, client_address):
         print "touch_handler (tags, data): (%s, %s)" % (tags, data)
         self.bArrived = True
@@ -67,6 +72,7 @@ class TOIO_OSC:
             self.server = OSC.OSCServer((self.ip,self.host))
             self.server.addDefaultHandlers()
             self.server.addMsgHandler("/light", self.light_handler)
+            self.server.addMsgHandler("/param", self.param_handler)
             #self.server.addMsgHandler("/msg", self.myMsg_handler)
             #self.server.addMsgHandler("/touch/position", self.touch_handler)
             self.server_thread = threading.Thread(target=self.server.serve_forever)

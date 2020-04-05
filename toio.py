@@ -6,10 +6,13 @@
 import os
 import math
 import time
+import threading
 import numpy as np
 import toio_util
 import toio_message
 from toio_config import *
+from toio_tracer import TOIO_TRACER, SPEED_BALANCER, FPS_CONTROL, PID
+from toio_debug import TOIO_DEBUG
 
 class TOIO:
     def __init__(self):
@@ -18,13 +21,15 @@ class TOIO:
         self.active = False
         self.assign = {}
         self.assign_edited = False
+        self.tracer = None
+        self.pid = None
 
     def noToio(self,virtual_num = 1):
         self.tc.noToio()
         self.vmode = virtual_num
         return
 
-    def connect(self, num=None, port=None):
+    def connect(self, num=None, port=None,osc_control=False):
         if not self.active:
             self.tc.connect(num, port)
             self.connect_num = num
@@ -37,10 +42,14 @@ class TOIO:
             for i in range(self.toio_num):
                 self.motor_pre[i] = [0,0]
                 self.assign[i] = i
+        self.pid = PID()
+        if osc_control:
+            self.pid.setOscControler()
         return 
 
     def disconnect(self):
         self.active = False
+        self.pid.closeOscControler()
         return self.tc.disconnect()
 
     def disconnect_each(self, cid, not_change_assign = False):
@@ -56,6 +65,8 @@ class TOIO:
     ################
     #### MOTOR #####
     ################
+    def stop(self,cid):
+        self.write_data_motor(cid,0,0)
 
     def write_data_motor(self,cid,l,r):
         self.motor_pre[cid][0] = l
@@ -158,37 +169,63 @@ class TOIO:
     ### FUNCTION  ##
     ################
 
-    def move_to(self,cid,x,y,speed = 80,thr = 50,ease=True):
-        while 1:
+    def move_to(self,cid,x,y,speed = 80,thr = 50,ease=True,enableBack=False,key_wait = False):
+        if key_wait:
+            th = threading.Thread(target=wait_input)
+            th.start()
+        while not key_wait or input_flag:
             cPos = self.get_data_id(cid)
-            diffX = x - cPos["cx"]
-            diffY = y - cPos["cy"]
-            distance = math.sqrt(diffX * diffX + diffY * diffY)
+            if cPos is None:return
+            cPos["diffX"] = x - cPos["cx"]
+            cPos["diffY"] = y - cPos["cy"]
+            distance = math.sqrt(cPos["diffX"]**2 + cPos["diffY"]**2)
             if distance < thr:
-                self.write_data_motor(cid, 0, 0)
+                self.stop(cid)
                 return
-            relAngle = (math.atan2(diffY, diffX) * 180) / math.pi - cPos["cr"]
-            relAngle = relAngle % 360
-            if relAngle < -180:
-                relAngle += 360
-            elif relAngle > 180:
-                relAngle -= 360
-            ratio = 1 - abs(relAngle) / 90.
             if ease:
                 _speed = self.easing(distance,speed,50)
             else:
                 _speed = speed
-            if relAngle > 0:
-                self.write_data_motor(cid, _speed, _speed * ratio)
+            self.move_step(cid,cPos,_speed,enableBack)
+        if key_wait:
+            self.stop(cid)
+            th.join()
+
+    def move_step(self,cid,pos,speed,enableBack):
+        back = False
+        relAngle = (math.atan2(pos["diffY"], pos["diffX"]) * 180) / math.pi - pos["cr"]
+        relAngle = relAngle % 360
+        if relAngle < -180:
+            relAngle += 360
+        elif relAngle > 180:
+            relAngle -= 360
+        if enableBack and relAngle>90:
+            back = True
+            relAngle = relAngle - 180
+        if enableBack and relAngle<-90:
+            back = True
+            relAngle = relAngle + 180
+        f = self.pid.update(cid,relAngle)
+        ratio = 1 - (abs(f) / 90.)
+        if back:
+            if f < 0:
+                self.write_data_motor(cid, - speed * ratio, - speed)
             else:
-                self.write_data_motor(cid, _speed * ratio, _speed)
+                self.write_data_motor(cid, - speed, - speed * ratio)
+        else:
+            if f < 0:
+                self.write_data_motor(cid, speed, speed * ratio)
+            else:
+                self.write_data_motor(cid, speed * ratio, speed)
+
 
     def turn_to(self,cid,r,clock = None,speed = 80,thr = 3,ease=True):
         while 1:
             cPos = self.get_data_id(cid)
+            if cPos is None:return
             diffR = (r - cPos["cr"])%360
             if diffR > 180:
-                direction = 0
+                direction = -1
                 dist = 360 - diffR
             else:
                 direction = 1
@@ -197,25 +234,136 @@ class TOIO:
                 direction = 1
                 dist = diffR
             if clock is False:
-                direction = 0
+                direction = -1
                 dist = 360 - diffR
             if dist < thr:
-                self.write_data_motor(cid, 0, 0)
+                self.stop(cid)
                 return
             if ease:
-                _speed = self.easing(dist,speed)
+                _speed = self.easing(dist,speed) * direction
             else:
-                _speed = speed
-            if direction:
-                self.write_data_motor(cid, _speed, -1*_speed)
-            else:
-                self.write_data_motor(cid, -1*_speed , _speed)
+                _speed = speed * direction
+            self.write_data_motor(cid, _speed, - _speed)
 
     def easing(self,value,speed,max_value = 180.0):
         #change speed with value (slow to stop)
         MIN_SPEED = 10
         ratio = min(1,value/max_value)
         return int(MIN_SPEED + (speed - MIN_SPEED)*ratio)
+
+    #####################
+    ### Trace Function ##
+    #####################
+
+    def setup_tracer(self):
+        if not self.active:return
+        if self.tracer is None:
+            self.tracer = TOIO_TRACER()
+            self.tracer.setup(self.get_connected_num())
+
+    def set_tracer_code(self,code,cid=None):
+        if cid is None:
+            for i in self.tracer.tracer:
+                i.set_code(code)
+        else:
+            self.tracer.tracer[cid].set_code(code)
+        return
+
+    def set_tracer_time_offset(self,t,cid=None):
+        if cid is None:
+            for i in self.tracer.tracer:
+                i.set_time_offset(t)
+        else:
+            self.tracer.tracer[cid].set_time_offset(t)
+        return
+
+    def set_tracer_speed(self,speed,cid=None):
+        if cid is None:
+            for i in self.tracer.tracer:
+                i.set_speed(speed)
+        else:
+            self.tracer.tracer[cid].set_speed(speed)
+        return
+
+    def run_tracer_init(self, key_wait=False, speed = 80,thr = 5):
+        for i in self.tracer.tracer:
+            i.set_time(0)
+        status = np.ones(self.tracer.num)
+        if key_wait:
+            th = threading.Thread(target=wait_input)
+            th.start()
+        while not key_wait or input_flag:
+            if max(status) == 0:break
+            print(status)
+            for cid,j in enumerate(self.tracer.tracer):
+                if status[cid]:
+                    x,y = j.get_pos()
+                    print(x,y)
+                    cPos = self.get_data_id(cid)
+                    print(cPos)
+                    if cPos is None:continue
+                    cPos["diffX"] = x - cPos["cx"]
+                    cPos["diffY"] = y - cPos["cy"]
+                    distance = math.sqrt(cPos["diffX"]**2 + cPos["diffY"]**2)
+                    if distance < thr:
+                        self.stop(cid)
+                        status[cid] = 0
+                        continue
+                    self.move_step(cid,cPos,self.easing(distance,speed,thr),True)
+        if key_wait:
+            for cid,j in enumerate(self.tracer.tracer):
+                self.stop(cid)
+            th.join()
+        return
+
+    def run_tracer(self, key_wait=False, speed = 30, follow_distance = 20, thr = 5, fps = None, debug = False, balance_speed = True, enableBack = True, test=False):
+        if self.tracer is None:
+            print("setup tracer")
+            return
+        if test and fps==None:
+            print("use fps option when to use test option")
+            return
+        if fps is not None:
+            self.tracer.fps_control.set_fps(fps)
+        if key_wait:
+            th = threading.Thread(target=wait_input)
+            th.start()
+        if debug:window = TOIO_DEBUG()
+        if balance_speed:
+            balancer = []
+            for cid,j in enumerate(self.tracer.tracer):
+                balancer.append(SPEED_BALANCER(follow_distance,speed))
+        while not key_wait or input_flag:
+            self.pid.updateParam()
+            self.tracer.fps_control.update()
+            if debug:window.clear()
+            for cid,j in enumerate(self.tracer.tracer):
+                j.update()
+                x,y = j.get_pos()
+                if debug:window.point(x,y,1)
+                cPos = self.get_data_id(cid)
+                if cPos is None:continue
+                cPos["diffX"] = x - cPos["cx"]
+                cPos["diffY"] = y - cPos["cy"]
+                distance = math.sqrt(cPos["diffX"]**2 + cPos["diffY"]**2)
+                if balance_speed:
+                    _speed = balancer[cid].update(distance)
+                else:
+                    if distance < thr:
+                        self.stop(cid)
+                        continue
+                    _speed = self.easing(distance,speed,thr)
+                if debug:window.comment('[{}]({},{}) -> ({},{}), speed = {}'.format(cid,cPos["cx"],cPos["cy"],x,y,_speed))
+                if not test:self.move_step(cid,cPos,_speed,enableBack)
+            if debug:window.comment('FPS = {}'.format(self.tracer.fps_control.get_fps()))
+            if debug:window.draw()
+            if fps is not None:self.tracer.fps_control.sleep()
+        if key_wait:
+            for cid,j in enumerate(self.tracer.tracer):
+                self.stop(cid)
+            th.join()
+
+
 
     ################
     #### OTHER  ####
@@ -288,8 +436,12 @@ class TOIO:
         self.assign = new_assign
         return True
 
-
-    
+input_flag = True
+def wait_input():
+    global input_flag
+    input_flag = True
+    raw_input()
+    input_flag = False
 
 def main():
     toio = TOIO()
