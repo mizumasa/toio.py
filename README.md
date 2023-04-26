@@ -1,4 +1,12 @@
-# toio.py
+# New Info!
+
+Happily the official toio Python library has been published.
+Please refer the official toio.py repository for further use. 
+
+https://github.com/toio/toio.py
+
+
+## toio.py (unofficial version)
 Library for controlling toio™Core Cube using Python
 
 ## Usage
